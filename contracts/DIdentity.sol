@@ -9,9 +9,9 @@ contract DIdentity is Ownable {
 
     struct Identity {
         bytes32 UID;
-        bytes32 nameHash; // keccak256 hash of name - Poseidon Hash?
-        uint256 dobHash; // keccak256 hash of date of birth - Poseidon Hash?
-        bytes32 verificationHash; // keccak256 hash of verification data - Poseidon Hash?
+        bytes32 nameHash; // keccak256 hash of name
+        uint256 dobHash; // Poseidon hash of date of birth
+        // bytes32 verificationHash; // keccak256 hash of verification data
     }
 
     struct Profile {
@@ -33,9 +33,6 @@ contract DIdentity is Ownable {
     event SetProfile(address _profiler, address _soul);
     event RemoveProfile(address _profiler, address _soul);
 
-    // constructor() {
-    // //   name = _name;
-    // }
 
     function mint(address _soul, Identity memory _identityData) external onlyOwner {
         require(identities[_soul].UID == zeroHash, "Soul already exists");
