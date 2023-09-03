@@ -14,6 +14,7 @@ template AgeProof() {
     signal age;
     age <== currentTimestamp - doBTimestamp;
 
+    // Check if the age is greater than the threshold
     component lte = LessThan(252);
     lte.in[0] <== age;
     lte.in[1] <== ageThreshold;
@@ -21,6 +22,7 @@ template AgeProof() {
 
     log("lt", lte.out);
 
+    // Check if the hash is valid
     component poseidon = Poseidon(2);
     poseidon.inputs[0] <== address;
     poseidon.inputs[1] <== doBTimestamp;

@@ -37,7 +37,18 @@ async function mintIdentity(signer, name, DoB, dIdentityContract) {
   await tx.wait();
 }
 
-async function createZKP(signer, doBTimestamp, currentTimestamp, ageThreshold) {
+async function createProfile(signer, address, creditScore, dIdentityContract) {
+  const hash = await poseidonHash([address, creditScore]);
+  const profile = {
+    entity: "Bank Credit Score",
+    dataHash: hash,
+    timestamp: Date.now(),
+  }
+  const tx = await dIdentityContract.connect(signer).setProfile(address, profile);
+  await tx.wait();
+}
+
+async function createAgeProof(signer, doBTimestamp, currentTimestamp, ageThreshold) {
   const hash = await poseidonHash([signer.address, doBTimestamp]);
   const { proof, publicSignals } = await snarkjs.groth16.fullProve(
     { doBTimestamp: doBTimestamp, address: signer.address, currentTimestamp: currentTimestamp, ageThreshold: ageThreshold, hash: hash }, 
@@ -47,19 +58,37 @@ async function createZKP(signer, doBTimestamp, currentTimestamp, ageThreshold) {
   return { proof, publicSignals };
 }
 
-
-async function verifyZKP(address, proof, publicSignals, dIdentityContract) {
+async function verifyAgeProof(address, proof, publicSignals, dIdentityContract) {
   const id = await dIdentityContract.getID(address);
   const vKey = JSON.parse(fs.readFileSync("verification_key.json"));
   const res = await snarkjs.groth16.verify(vKey, publicSignals, proof);
-  return res && (id.dobHash == publicSignals[3]);
+  return (res && (id.dobHash == publicSignals[3]));
 }
 
+async function createCreditProof(signer, creditScore, minCreditScore, maxCreditScore) {
+  const hash = await poseidonHash([signer.address, creditScore]);
+  const {proof, publicSignals} = await snarkjs.groth16.fullProve(
+    { creditScore: creditScore, minCreditScore: minCreditScore, maxCreditScore: maxCreditScore, address: signer.address, hash: hash },
+    "build/credit_proof_js/credit_proof.wasm",
+    "circuit_1.zkey");
+
+  const creditProof = proof;
+  const creditPublicSignals = publicSignals;
+  return { creditProof, creditPublicSignals };
+}
+
+async function verifyCreditProof(profiler, address, proof, publicSignals, dIdentityContract) {
+  const profile = await dIdentityContract.getProfile(profiler, address);
+  const dataHash = profile.dataHash;
+  const vKey = JSON.parse(fs.readFileSync("verification_key_1.json"));
+  const res = await snarkjs.groth16.verify(vKey, publicSignals, proof);
+  return (res && (dataHash == publicSignals[3]));
+}
 
 async function main() {
   const dIdentityContract = await deploy();
 
-  const [owner, addr1, addr2] = await hre.ethers.getSigners();
+  const [deployer, addr1, addr2] = await hre.ethers.getSigners();
 
   const name = "John Doe";
   const DoB = "01/01/2000";
@@ -69,10 +98,18 @@ async function main() {
   const identity = await dIdentityContract.getID(addr1.address);
   console.log(identity);
   const ageThreshold = 21 * 365 * 24 * 60 * 60; // 21 years in seconds
-  const {proof, publicSignals} = await createZKP(addr1, DoBTimestamp, Date.now(), ageThreshold);
+  const {proof, publicSignals} = await createAgeProof(addr1, DoBTimestamp, Date.now(), ageThreshold);
   console.log(publicSignals);
-  const verification = await verifyZKP(addr1.address, proof, publicSignals, dIdentityContract);
+  const verification = await verifyAgeProof(addr1.address, proof, publicSignals, dIdentityContract);
   console.log(verification);
+
+  // Create Profile
+  await createProfile(deployer, addr1.address, 700, dIdentityContract);
+
+  // Credit Proof
+  const {creditProof, creditPublicSignals } = await createCreditProof(addr1, 700, 600, 800);
+  const creditVerification = await verifyCreditProof(deployer.address, addr1.address, creditProof, creditPublicSignals, dIdentityContract);
+  console.log(creditVerification);
 
 }
 
