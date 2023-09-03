@@ -40,7 +40,7 @@ async function mintIdentity(signer, name, DoB, pin, dIdentityContract) {
 async function createZKP(signer) {
   const hash = await poseidonHash([signer.address, 1000]);
   const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-    { doBTimestamp: 1000, address: signer.address, currentTimestamp: 1003, ageThreshold: 4, hash: hash }, 
+    { doBTimestamp: 1000, address: signer.address, currentTimestamp: 1003, ageThreshold: 3, hash: hash }, 
     "build/age_proof_js/age_proof.wasm", 
     "circuit_0.zkey");
   console.log(publicSignals);
